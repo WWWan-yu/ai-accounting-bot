@@ -78,8 +78,11 @@ module.exports = async (req, res) => {
     }
 
     const 品項 = parsed['品項'] || userMsg;
-    const 金額 = Number(parsed['金額']) || 0;
-    const 類別 = parsed['類別'] || '其他';
+const 類別 = parsed['類別'] || '其他';
+
+// 直接從原始訊息抓數字當金額，更穩
+const numMatch = userMsg.match(/\d+/);
+const 金額 = numMatch ? Number(numMatch[0]) : (Number(parsed['金額']) || 0);
 
     await writeToSheet({ 品項, 金額, 類別 });
 
