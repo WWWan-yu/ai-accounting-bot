@@ -25,8 +25,8 @@ module.exports = async (req, res) => {
 
   try {
     // 補充模式：「補充 店名 評價 備註」
-    if (userMsg.startsWith('補充')) {
-      const parts = userMsg.replace('補充', '').trim().split(/[,，\s]+/);
+  if (userMsg.startsWith('.') || userMsg.startsWith('補充')) {
+   const parts = userMsg.replace(/^補充|^\./, '').trim().split(/[,，\s]+/);
       const storeName = parts[0] || '';
       const rating = parts[1] || '';
       const note = parts[2] || '';
