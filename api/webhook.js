@@ -24,12 +24,13 @@ module.exports = async (req, res) => {
   const replyToken = event.replyToken;
 
   try {
-    // 補充模式：「補充 店名 評價 備註」
-  if (userMsg.startsWith('.') || userMsg.startsWith('補充')) {
-   const parts = userMsg.replace(/^補充|^\./, '').trim().split(/[,，\s]+/);
+    // 補充模式：. 開頭
+    if (userMsg.startsWith('.')) {
+      const content = userMsg.slice(1).trim();
+      const parts = content.split(/[,，\s]+/);
       const storeName = parts[0] || '';
       const rating = parts[1] || '';
-      const note = parts[2] || '';
+      const note = parts.slice(2).join(' ') || '';
 
       await updateLastRow({ storeName, rating, note });
 
@@ -40,7 +41,7 @@ module.exports = async (req, res) => {
       return res.status(200).json({ status: 'ok' });
     }
 
-    // 一般記帳
+    // 一般記帳，呼叫 Gemini
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
@@ -77,18 +78,16 @@ module.exports = async (req, res) => {
       parsed = { 品項: userMsg, 金額: 0, 類別: '其他' };
     }
 
-const 品項 = (parsed['品項'] || userMsg).replace(/\d+/g, '').trim();
-const 類別 = parsed['類別'] || '其他';
-
-// 直接從原始訊息抓數字當金額，更穩
-const numMatch = userMsg.match(/\d+/);
-const 金額 = numMatch ? Number(numMatch[0]) : (Number(parsed['金額']) || 0);
+    const 品項 = (parsed['品項'] || userMsg).replace(/\d+/g, '').trim();
+    const 類別 = parsed['類別'] || '其他';
+    const numMatch = userMsg.match(/\d+/);
+    const 金額 = numMatch ? Number(numMatch[0]) : (Number(parsed['金額']) || 0);
 
     await writeToSheet({ 品項, 金額, 類別 });
 
     await client.replyMessage(replyToken, {
       type: 'text',
-      text: `✅ 已記帳！\n📝 ${品項}\n💰 NT$${金額}\n🏷️ ${類別}\n\n想補充店名/評價/備註嗎？\n直接回「補充 店名 評價 備註」`
+      text: `✅ 已記帳！\n📝 ${品項}\n💰 NT$${金額}\n🏷️ ${類別}\n\n想補充店名/評價/備註嗎？\n格式：. 店名 評價 備註`
     });
 
     return res.status(200).json({ status: 'ok' });
@@ -134,9 +133,9 @@ async function updateLastRow({ storeName, rating, note }) {
   const rows = await sheet.getRows();
   const lastRow = rows[rows.length - 1];
   if (lastRow) {
-    lastRow['店名'] = storeName;
-    lastRow['評價'] = rating;
-    lastRow['備註'] = note;
+    if (storeName) lastRow['店名'] = storeName;
+    if (rating) lastRow['評價'] = rating;
+    if (note) lastRow['備註'] = note;
     await lastRow.save();
   }
 }
