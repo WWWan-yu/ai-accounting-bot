@@ -5,8 +5,6 @@ const client = new line.Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
 });
 
-const userSessions = {};
-
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(200).json({ status: 'ok' });
@@ -24,32 +22,25 @@ module.exports = async (req, res) => {
 
   const userMsg = event.message.text.trim();
   const replyToken = event.replyToken;
-  const userId = event.source.userId;
 
   try {
-    const session = userSessions[userId];
+    // 補充模式：「補充 店名 評價 備註」
+    if (userMsg.startsWith('補充')) {
+      const parts = userMsg.replace('補充', '').trim().split(/[,，\s]+/);
+      const storeName = parts[0] || '';
+      const rating = parts[1] || '';
+      const note = parts[2] || '';
 
-    // 如果有待確認的記帳資料
-    if (session && session.step === 'ask_details') {
-      const parts = userMsg.split(/[,，\s]+/);
-      session.storeName = parts[0] || '';
-      session.rating = parts[1] || '';
-      session.note = parts[2] || '';
-
-      // 寫進試算表
-      await writeToSheet(session);
-
-      delete userSessions[userId];
+      await updateLastRow({ storeName, rating, note });
 
       await client.replyMessage(replyToken, {
         type: 'text',
-        text: `✅ 記帳完成！\n📝 ${session.品項}\n💰 NT$${session.金額}\n🏷️ ${session.類別}\n🏪 ${session.storeName || '未填'}\n⭐ ${session.rating || '未填'}\n📌 ${session.note || '未填'}`
+        text: `✅ 已補充！\n🏪 ${storeName || '—'}\n⭐ ${rating || '—'}\n📌 ${note || '—'}`
       });
-
       return res.status(200).json({ status: 'ok' });
     }
 
-    // 第一句話，呼叫 Gemini 解析
+    // 一般記帳
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
@@ -58,12 +49,17 @@ module.exports = async (req, res) => {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `你是記帳助理。請從以下這句話中擷取資訊。
-只能回傳純JSON，不要任何說明文字、不要markdown、不要反引號。
-格式：{"品項":"商品名稱","金額":數字,"類別":"類別名稱"}
-金額必須是純數字，例如1580，不是字串。
-類別選項：食品、交通、住居、娛樂、醫療、購物、創業耗材、創業設備、創業其他、其他
-這句話：${userMsg}`
+              text: `請從以下句子中找出消費品項和金額。
+規則：
+1. 只回傳JSON，不要任何其他文字
+2. 金額必須是純數字（例如1580），不是字串
+3. 如果找不到金額就填0
+4. 品項去掉數字和錢的部分，只留商品或活動名稱
+5. 類別從以下選一個：食品、交通、住居、娛樂、醫療、購物、創業耗材、創業設備、創業其他、其他
+
+回傳格式：{"品項":"xxx","金額":數字,"類別":"xxx"}
+
+句子：${userMsg}`
             }]
           }]
         })
@@ -82,22 +78,20 @@ module.exports = async (req, res) => {
     }
 
     const 品項 = parsed['品項'] || userMsg;
-    const 金額 = parsed['金額'] || 0;
+    const 金額 = Number(parsed['金額']) || 0;
     const 類別 = parsed['類別'] || '其他';
 
-    // 暫存 session，等待追問
-    userSessions[userId] = { 品項, 金額, 類別, step: 'ask_details' };
+    await writeToSheet({ 品項, 金額, 類別 });
 
     await client.replyMessage(replyToken, {
       type: 'text',
-      text: `收到！\n📝 ${品項}　💰 NT$${金額}　🏷️ ${類別}\n\n店名、評價、備註呢？（用逗號分隔，例如：火鍋店,好吃,下次再來）\n不想填直接回「ok」`
+      text: `✅ 已記帳！\n📝 ${品項}\n💰 NT$${金額}\n🏷️ ${類別}\n\n想補充店名/評價/備註嗎？\n直接回「補充 店名 評價 備註」`
     });
 
     return res.status(200).json({ status: 'ok' });
 
   } catch (err) {
     console.error(err);
-    delete userSessions[userId];
     await client.replyMessage(replyToken, {
       type: 'text',
       text: '記帳失敗，請重試'
@@ -120,8 +114,26 @@ async function writeToSheet(data) {
     品項: data.品項,
     金額: data.金額,
     類別: data.類別,
-    店名: data.storeName || '',
-    評價: data.rating || '',
-    備註: data.note || '',
+    店名: '',
+    評價: '',
+    備註: '',
   });
+}
+
+async function updateLastRow({ storeName, rating, note }) {
+  const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID);
+  await doc.useServiceAccountAuth({
+    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  });
+  await doc.loadInfo();
+  const sheet = doc.sheetsByTitle['流水帳'];
+  const rows = await sheet.getRows();
+  const lastRow = rows[rows.length - 1];
+  if (lastRow) {
+    lastRow['店名'] = storeName;
+    lastRow['評價'] = rating;
+    lastRow['備註'] = note;
+    await lastRow.save();
+  }
 }
