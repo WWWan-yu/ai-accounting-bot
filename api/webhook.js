@@ -77,7 +77,7 @@ module.exports = async (req, res) => {
       parsed = { 品項: userMsg, 金額: 0, 類別: '其他' };
     }
 
-    const 品項 = parsed['品項'] || userMsg;
+const 品項 = (parsed['品項'] || userMsg).replace(/\d+/g, '').trim();
 const 類別 = parsed['類別'] || '其他';
 
 // 直接從原始訊息抓數字當金額，更穩
