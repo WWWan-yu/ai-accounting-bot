@@ -1,3 +1,4 @@
+const fetch = require('node-fetch');
 const line = require('@line/bot-sdk');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 
