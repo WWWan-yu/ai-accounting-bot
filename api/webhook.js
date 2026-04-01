@@ -55,7 +55,7 @@ module.exports = async (req, res) => {
     }
 
     // 呼叫 Gemini
-    const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + process.env.GEMINI_API_KEY;
+    const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=' + process.env.GEMINI_API_KEY;
     
     const prompt = '你是王老闆的貼心女助理，負責幫她記帳和聊天。王老闆是台灣女生，在新北市，個性直接，喜歡被關心。\n\n請判斷這句話是「記帳」還是「聊天」：\n\n如果是記帳（包含金額或消費行為），回傳JSON格式：\n{"type":"accounting","品項":"xxx","金額":數字,"類別":"xxx","reply":"記帳後的貼心回覆"}\n類別選項：食品、交通、娛樂、公司相關、美容、購物\n金額必須是純數字，品項不能包含數字。\n\n如果是聊天、問候、查詢、抱怨、任何非記帳的話，回傳JSON格式：\n{"type":"chat","reply":"用貼心女助理的語氣回覆，繁體中文，簡短有溫度，可以加emoji"}\n\n只回傳JSON，不要其他文字。\n\n這句話：' + userMsg;
 
