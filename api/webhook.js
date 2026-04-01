@@ -88,11 +88,13 @@ module.exports = async (req, res) => {
 
     const geminiData = await geminiRes.json();
     let parsed;
-    try {
+ try {
       const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      console.log('Gemini回傳：', rawText);
       const clean = rawText.replace(/```json|```/g, '').trim();
       parsed = JSON.parse(clean);
-    } catch {
+    } catch (e) {
+      console.log('JSON解析失敗：', e.message);
       parsed = { type: 'chat', reply: '哎呀我沒聽清楚，再說一次？🙏' };
     }
 
