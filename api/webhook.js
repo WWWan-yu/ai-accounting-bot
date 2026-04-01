@@ -55,8 +55,8 @@ module.exports = async (req, res) => {
     }
 
     // 全部交給 Gemini 判斷
-const geminiRes = await fetch(apiUrl, {
 const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + process.env.GEMINI_API_KEY;
+const geminiRes = await fetch(apiUrl, {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
